@@ -97,6 +97,9 @@ type BackupOptions struct {
 	NoScan            bool
 	SkipIfUnchanged   bool
 
+	// BackendHeaders allow passing custom headers to backend HTTP requests.
+	BackendHeaders []string
+
 	readConcurrencyFlag *pflag.Flag
 }
 
@@ -117,6 +120,7 @@ func (opts *BackupOptions) AddFlags(f *pflag.FlagSet) {
 	f.BoolVar(&opts.StdinCommand, "stdin-from-command", false, "interpret arguments as command to execute and store its stdout")
 	f.Var(&opts.Tags, "tag", "add `tags` for the new snapshot in the format `tag[,tag,...]` (can be specified multiple times)")
 	f.UintVar(&opts.ReadConcurrency, "read-concurrency", 0, "read `n` files concurrently (default: $RESTIC_READ_CONCURRENCY or 2)")
+	f.StringArrayVar(&opts.BackendHeaders, "backend-header", nil, "add custom backend `header` to include in backend HTTP requests (format: 'Key: Value', can be specified multiple times)")
 	f.StringVarP(&opts.Host, "host", "H", "", "set the `hostname` for the snapshot manually (default: $RESTIC_HOST). To prevent an expensive rescan use the \"parent\" flag")
 	f.StringVar(&opts.Host, "hostname", "", "set the `hostname` for the snapshot manually")
 	err := f.MarkDeprecated("hostname", "use --host")
@@ -179,6 +183,46 @@ var ErrInvalidSourceData = errors.New("at least one source file could not be rea
 
 // ErrNoSourceData is used to report that no source data was found
 var ErrNoSourceData = errors.Fatal("all source directories/files do not exist")
+
+func parseBackendHeaders(headerSpecs []string) (map[string]string, error) {
+	if len(headerSpecs) == 0 {
+		return nil, nil
+	}
+
+	headers := make(map[string]string, len(headerSpecs))
+	for _, spec := range headerSpecs {
+		parts := strings.SplitN(spec, ":", 2)
+		if len(parts) != 2 {
+			return nil, errors.Fatalf("invalid header format: %q, expected 'Key: Value'", spec)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			return nil, errors.Fatalf("invalid header name in: %q", spec)
+		}
+
+		headers[key] = value
+	}
+
+	return headers, nil
+}
+
+func mergeBackendHeaders(existing map[string]string, extra map[string]string) map[string]string {
+	if len(existing) == 0 && len(extra) == 0 {
+		return nil
+	}
+
+	headers := make(map[string]string, len(existing)+len(extra))
+	for key, value := range existing {
+		headers[key] = value
+	}
+	for key, value := range extra {
+		headers[key] = value
+	}
+
+	return headers
+}
 
 // filterExisting returns the items that exist and can be accessed. It returns
 // ErrNoSourceData if none remain, or ErrInvalidSourceData if some were skipped.
@@ -536,6 +580,15 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts global.Options, te
 
 	if gopts.Verbosity >= 2 && !gopts.JSON {
 		printer.P("open repository")
+	}
+
+	// apply backend headers from flags to transport options
+	if len(opts.BackendHeaders) > 0 {
+		headers, err := parseBackendHeaders(opts.BackendHeaders)
+		if err != nil {
+			return err
+		}
+		gopts.TransportOptions.Headers = mergeBackendHeaders(gopts.TransportOptions.Headers, headers)
 	}
 
 	ctx, repo, unlock, err := openWithAppendLock(ctx, gopts, opts.DryRun, printer)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -13,6 +14,55 @@ import (
 	"github.com/restic/restic/internal/errors"
 	rtest "github.com/restic/restic/internal/test"
 )
+
+func TestParseBackendHeaders(t *testing.T) {
+	headers, err := parseBackendHeaders([]string{
+		"X-Backup-Token: abc123",
+		"X-Request-Source: restic",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		"X-Backup-Token":   "abc123",
+		"X-Request-Source": "restic",
+	}
+
+	if !reflect.DeepEqual(headers, expected) {
+		t.Fatalf("unexpected headers: got %#v want %#v", headers, expected)
+	}
+}
+
+func TestParseBackendHeadersRejectsInvalidFormat(t *testing.T) {
+	_, err := parseBackendHeaders([]string{"invalid-header"})
+	if err == nil {
+		t.Fatal("expected error for invalid header format")
+	}
+}
+
+func TestMergeBackendHeaders(t *testing.T) {
+	merged := mergeBackendHeaders(
+		map[string]string{
+			"CF-Access-Client-Id": "env-id",
+			"X-Existing":          "keep-me",
+		},
+		map[string]string{
+			"CF-Access-Client-Secret": "env-secret",
+			"X-Existing":              "override-me",
+		},
+	)
+
+	expected := map[string]string{
+		"CF-Access-Client-Id":     "env-id",
+		"CF-Access-Client-Secret": "env-secret",
+		"X-Existing":              "override-me",
+	}
+
+	if !reflect.DeepEqual(merged, expected) {
+		t.Fatalf("unexpected merged headers: got %#v want %#v", merged, expected)
+	}
+}
 
 func TestCollectTargets(t *testing.T) {
 	dir := rtest.TempDir(t)

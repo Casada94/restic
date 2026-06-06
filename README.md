@@ -53,6 +53,23 @@ Therefore, restic supports the following backends for storing backups natively:
 - [Google Cloud Storage](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html#google-cloud-storage)
 - And many other services via the [rclone](https://rclone.org) [Backend](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html#other-services-via-rclone)
 
+## Custom Backend Headers
+
+If your backend or reverse proxy needs extra HTTP headers, use `--backend-header`
+with the `backup` command. Specify the flag once per header in `Key: Value`
+format.
+
+Example:
+
+   $ restic --repo rest:https://backup.example.com/repo backup \
+      --backend-header "X-Backup-Token: abc123" \
+      --backend-header "X-Request-Source: restic" \
+      ~/work
+
+This adds the headers to backend HTTP requests made during the backup.
+
+For Cloudflare Tunnel access, restic also honors the environment variables `CLOUDFLARE_TUNNEL_ACCESS_ID` and `CLOUDFLARE_TUNNEL_ACCESS_SECRET`, which are sent as `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers on outbound REST calls.
+
 # Design Principles
 
 Restic is a program that does backups right and was designed with the

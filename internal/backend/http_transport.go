@@ -32,6 +32,10 @@ type TransportOptions struct {
 	// Specify Custom User-Agent for the http Client
 	HTTPUserAgent string
 
+	// Custom headers to inject into HTTP requests made to backends.
+	// Map of header name to header value.
+	Headers map[string]string
+
 	// Timeout after which to retry stuck requests
 	StuckRequestTimeout time.Duration
 }
@@ -139,6 +143,11 @@ func Transport(opts TransportOptions) (http.RoundTripper, error) {
 	// http.RoundTripper
 	if opts.HTTPUserAgent != "" {
 		rt = newCustomUserAgentRoundTripper(rt, opts.HTTPUserAgent)
+	}
+
+	// if custom headers are set, wrap the RoundTripper to inject them
+	if len(opts.Headers) > 0 {
+		rt = newCustomHeadersRoundTripper(rt, opts.Headers)
 	}
 
 	if feature.Flag.Enabled(feature.BackendErrorRedesign) {

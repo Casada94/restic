@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -127,4 +128,23 @@ func TestCompressionEnvIgnoredWhenFlagSet(t *testing.T) {
 	err = gopts.PreRun(false)
 	rtest.OK(t, err)
 	rtest.Equals(t, "off", gopts.Compression.String())
+}
+
+func TestCloudflareTunnelAccessHeadersEnvApplied(t *testing.T) {
+	t.Setenv("CLOUDFLARE_TUNNEL_ACCESS_ID", "access-id")
+	t.Setenv("CLOUDFLARE_TUNNEL_ACCESS_SECRET", "access-secret")
+
+	var gopts Options
+	gopts.Headers = map[string]string{"X-Existing": "value"}
+	gopts.AddFlags(pflag.NewFlagSet("test", pflag.ContinueOnError))
+
+	expected := map[string]string{
+		"X-Existing":              "value",
+		"CF-Access-Client-Id":     "access-id",
+		"CF-Access-Client-Secret": "access-secret",
+	}
+
+	if !reflect.DeepEqual(gopts.Headers, expected) {
+		t.Fatalf("unexpected headers: got %#v want %#v", gopts.Headers, expected)
+	}
 }

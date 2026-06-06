@@ -132,6 +132,18 @@ func (opts *Options) AddFlags(f *pflag.FlagSet) {
 	if os.Getenv("RESTIC_HTTP_USER_AGENT") != "" {
 		opts.HTTPUserAgent = os.Getenv("RESTIC_HTTP_USER_AGENT")
 	}
+	if envVal := os.Getenv("CLOUDFLARE_TUNNEL_ACCESS_ID"); envVal != "" {
+		if opts.Headers == nil {
+			opts.Headers = make(map[string]string)
+		}
+		opts.Headers["CF-Access-Client-Id"] = envVal
+	}
+	if envVal := os.Getenv("CLOUDFLARE_TUNNEL_ACCESS_SECRET"); envVal != "" {
+		if opts.Headers == nil {
+			opts.Headers = make(map[string]string)
+		}
+		opts.Headers["CF-Access-Client-Secret"] = envVal
+	}
 }
 
 func (opts *Options) PreRun(needsPassword bool) error {
